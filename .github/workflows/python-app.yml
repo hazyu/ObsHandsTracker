@@ -31,7 +31,7 @@ jobs:
       run: pyinstaller main.spec
     - name: Create ZIP Archive on Windows
       run: |
-        Compress-Archive -Path ".dist" -DestinationPath "release-windows.zip"
+        Compress-Archive -Path ".\dist" -DestinationPath "release-windows.zip"
     - name: Upload ZIP to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
