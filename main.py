@@ -9,11 +9,24 @@ import mediapipe as mp
 import obsws_python as obs
 import threading
 import time
+import os
+import sys
 
 cl = None
+event_cl = None
 running = False
 hand_detected = False
 landmarker = None
+recording = False
+timeout = 0
+
+def get_path(rel):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, rel) # type: ignore
+    return os.path.join(os.path.abspath("."), rel) # type: ignore
+
+def on_record_state_change(data):
+    print(data.output_state)
 
 
 def on_result_callback(result, output_image, timestamp_ms: int):
@@ -24,7 +37,7 @@ def on_result_callback(result, output_image, timestamp_ms: int):
         hand_detected = False
 
 def detection_loop(index):
-    global running
+    global running, recording, timeout
     capture = cv2.VideoCapture(index)
 
     delay = 1.0 / 30.0
@@ -44,8 +57,15 @@ def detection_loop(index):
             if landmarker:
                 landmarker.detect_async(mp_image, timestamp)
 
-            if hand_detected:
-                print("Hand got!")
+            if hand_detected and not recording:
+                if cl != None:
+                    recording = True
+                    cl.start_record()
+
+            if not hand_detected and recording:
+                if cl != None:
+                    recording = False
+                    cl.stop_record()
 
             elapsed = time.time() - start_time
             if elapsed < delay:
@@ -57,7 +77,7 @@ def detection_loop(index):
     capture.release()
     
 def on_button_click():
-    global cl, running, landmarker
+    global cl, event_cl, running, landmarker
     if button["text"] == "Start":
         try:
             cl = obs.ReqClient(host=hostname_entry.get(), port=port_entry.get(), password=password_entry.get(), timeout=5)
@@ -65,7 +85,8 @@ def on_button_click():
             button.config(text="Stop")
 
 
-            base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
+            model_path = get_path("hand_landmarker.task")
+            base_options = python.BaseOptions(model_asset_path=model_path)
             options = vision.HandLandmarkerOptions(
                 base_options=base_options, 
                 running_mode=vision.RunningMode.LIVE_STREAM, 
