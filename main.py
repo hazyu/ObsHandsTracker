@@ -11,6 +11,13 @@ def on_button_click():
     started = not started
     if started:
         button.config(text="Stop")
+        try:
+            cl = obs.ReqClient(host=hostname_entry.get(), port=port_entry.get(), password=password_entry.get(), timeout=5)
+            print("Connected")
+        except Exception as e:
+            print(f"Connection failed: {e}")
+            cl = None
+
     else:
         button.config(text="Start")
 
