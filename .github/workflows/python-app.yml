@@ -35,6 +35,7 @@ jobs:
     - name: Upload ZIP to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: "latest"
         files: release-windows.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
