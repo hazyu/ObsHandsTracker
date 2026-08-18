@@ -5,9 +5,11 @@ import mediapipe as mp
 import obsws_python as obs
 
 started: bool = False
+cl = None
 
 def on_button_click():
     global started
+    global cl
     started = not started
     if started:
         button.config(text="Stop")
@@ -17,9 +19,11 @@ def on_button_click():
         except Exception as e:
             print(f"Connection failed: {e}")
             cl = None
-
     else:
         button.config(text="Start")
+        if cl != None:
+            cl.disconnect()
+        
 
 def show_password_click():
     if password_entry.cget("show") == "*":
