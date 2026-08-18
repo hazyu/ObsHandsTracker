@@ -1,26 +1,97 @@
 from tkinter import messagebox
+from tkinter import ttk
+from cv2_enumerate_cameras import enumerate_cameras
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 import tkinter as tk
 import cv2
 import mediapipe as mp
 import obsws_python as obs
+import threading
+import time
 
 cl = None
+running = False
+hand_detected = False
+landmarker = None
 
+
+def on_result_callback(result, output_image, timestamp_ms: int):
+    global hand_detected
+    if result.hand_landmarks:
+        hand_detected = True
+    else:
+        hand_detected = False
+
+def detection_loop(index):
+    global running
+    capture = cv2.VideoCapture(index)
+
+    delay = 1.0 / 30.0
+
+    while running and capture.isOpened():
+            start_time = time.time()
+            suc, frame = capture.read()
+
+            if not suc:
+                break
+
+            color_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_frame) # type: ignore
+
+            timestamp = int(time.time() * 1000)
+
+            if landmarker:
+                landmarker.detect_async(mp_image, timestamp)
+
+            if hand_detected:
+                print("Hand got!")
+
+            elapsed = time.time() - start_time
+            if elapsed < delay:
+                time.sleep(delay - elapsed)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    capture.release()
+    
 def on_button_click():
-    global cl
+    global cl, running, landmarker
     if button["text"] == "Start":
         try:
             cl = obs.ReqClient(host=hostname_entry.get(), port=port_entry.get(), password=password_entry.get(), timeout=5)
             print("Connected")
             button.config(text="Stop")
+
+
+            base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
+            options = vision.HandLandmarkerOptions(
+                base_options=base_options, 
+                running_mode=vision.RunningMode.LIVE_STREAM, 
+                num_hands=1, min_hand_detection_confidence=0.5, 
+                result_callback=on_result_callback
+            )
+            landmarker = vision.HandLandmarker.create_from_options(options)
+
+            index = cameras.get(combo.get())
+            running = True 
+            detection_thread = threading.Thread(target=detection_loop, args=(index, ), daemon=True)
+            detection_thread.start()
+
         except Exception as e:
             print(f"Connection failed: {e}")
             cl = None
             messagebox.showerror("Connection failed", e.__str__())
     else:
         button.config(text="Start")
+        running = False
         if cl != None:
             cl.disconnect()
+        if landmarker:
+            landmarker.close()
+            landmarker = None
+
         
 
 def show_password_click():
@@ -62,8 +133,18 @@ password_entry.pack(pady=4, padx=4)
 pass_show_button = tk.Button(password_frame, text="Show", command=show_password_click)
 pass_show_button.pack(pady=4)
 
+cameras: dict[str, int] = dict()
+for cam in enumerate_cameras():
+    cameras[cam.name] = cam.index
+
+combo = ttk.Combobox(root, values=list(cameras.keys()), state="readonly")
+combo.set("choose a camera")
+combo.pack()
+
 button = tk.Button(root, text="Start", command=on_button_click)
 button.pack(pady=10)
+
+
 
 root.mainloop()
 
