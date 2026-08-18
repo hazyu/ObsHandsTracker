@@ -1,24 +1,22 @@
-from ast import Pass
+from tkinter import messagebox
 import tkinter as tk
 import cv2
 import mediapipe as mp
 import obsws_python as obs
 
-started: bool = False
 cl = None
 
 def on_button_click():
-    global started
     global cl
-    started = not started
-    if started:
-        button.config(text="Stop")
+    if button["text"] == "Start":
         try:
             cl = obs.ReqClient(host=hostname_entry.get(), port=port_entry.get(), password=password_entry.get(), timeout=5)
             print("Connected")
+            button.config(text="Stop")
         except Exception as e:
             print(f"Connection failed: {e}")
             cl = None
+            messagebox.showerror("Connection failed", e.__str__())
     else:
         button.config(text="Start")
         if cl != None:
